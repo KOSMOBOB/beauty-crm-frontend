@@ -1,147 +1,87 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
 import Dashboard from './components/Dashboard/Dashboard';
-
-// Простая заглушка для AuthContext
-const AuthContext = React.createContext();
-
-export const useAuth = () => {
-  const context = React.useContext(AuthContext);
-  if (!context) {
-    return { user: null, loading: false, login: () => {}, register: () => {}, logout: () => {} };
-  }
-  return context;
-};
-
-const AuthProvider = ({ children }) => {
-  const [user, setUser] = React.useState(null);
-  const [loading, setLoading] = React.useState(false);
-
-  const login = async (email, password) => {
-    // Простая заглушка для входа
-    if (email === 'demo@salon.com' && password === 'demo123') {
-      setUser({ id: 1, name: 'Demo Salon', email });
-      return true;
-    }
-    return false;
-  };
-
-  const register = async (data) => {
-    setUser({ id: 1, name: data.name, email: data.email });
-    return true;
-  };
-
-  const logout = () => {
-    setUser(null);
-  };
-
-  const value = {
-    user,
-    loading,
-    login,
-    register,
-    logout,
-    isAuthenticated: !!user,
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-// Компонент для защищенных роутов
-const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  
-  if (loading) {
-    return (
-      <div className="min-h-screen d-flex align-items-center justify-content-center">
-        <div className="loading-spinner"></div>
-      </div>
-    );
-  }
-  
-  return user ? children : <Navigate to="/login" replace />;
-};
-
-// Компонент для публичных роутов
-const PublicRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  
-  if (loading) {
-    return (
-      <div className="min-h-screen d-flex align-items-center justify-content-center">
-        <div className="loading-spinner"></div>
-      </div>
-    );
-  }
-  
-  return user ? <Navigate to="/dashboard" replace /> : children;
-};
+import './App.css';
 
 function App() {
-  return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <Routes>
-            {/* Публичные роуты */}
-            <Route 
-              path="/login" 
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              } 
-            />
-            <Route 
-              path="/register" 
-              element={
-                <PublicRoute>
-                  <Register />
-                </PublicRoute>
-              } 
-            />
-            
-            {/* Защищенные роуты */}
-            <Route 
-              path="/dashboard/*" 
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Редирект на dashboard */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            
-            {/* 404 страница */}
-            <Route 
-              path="*" 
-              element={
-                <div className="min-h-screen d-flex align-items-center justify-content-center">
-                  <div className="text-center">
-                    <h1 className="text-xl font-bold mb-3">404 - Страница не найдена</h1>
-                    <p className="text-gray-600 mb-4">
-                      Запрашиваемая страница не существует
-                    </p>
-                    <a href="/" className="btn btn-primary">
-                      На главную
-                    </a>
-                  </div>
-                </div>
-              } 
-            />
-          </Routes>
+  const [currentView, setCurrentView] = useState('login'); // 'login', 'register', 'dashboard'
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Проверяем сохраненную сессию при загрузке
+  useEffect(() => {
+    const savedUser = localStorage.getItem('beauty_crm_user');
+    const savedToken = localStorage.getItem('beauty_crm_token');
+    
+    if (savedUser && savedToken) {
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        setCurrentView('dashboard');
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem('beauty_crm_user');
+        localStorage.removeItem('beauty_crm_token');
+      }
+    }
+    
+    setIsLoading(false);
+  }, []);
+
+  const handleLoginSuccess = (userData, token) => {
+    setUser(userData);
+    localStorage.setItem('beauty_crm_user', JSON.stringify(userData));
+    localStorage.setItem('beauty_crm_token', token);
+    setCurrentView('dashboard');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('beauty_crm_user');
+    localStorage.removeItem('beauty_crm_token');
+    setCurrentView('login');
+  };
+
+  const switchToRegister = () => {
+    setCurrentView('register');
+  };
+
+  const switchToLogin = () => {
+    setCurrentView('login');
+  };
+
+  // Показываем загрузку пока проверяем сессию
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900 flex items-center justify-center">
+        <div className="relative bg-white/[0.08] backdrop-blur-xl border border-white/[0.12] rounded-2xl shadow-xl p-8">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-white text-lg">Загрузка Beauty CRM...</span>
+          </div>
         </div>
-      </Router>
-    </AuthProvider>
-  );
+      </div>
+    );
+  }
+
+  // Рендерим соответствующий компонент
+  switch (currentView) {
+    case 'register':
+      return <Register onSwitchToLogin={switchToLogin} />;
+    
+    case 'dashboard':
+      return <Dashboard user={user} onLogout={handleLogout} />;
+    
+    case 'login':
+    default:
+      return (
+        <Login 
+          onLoginSuccess={handleLoginSuccess}
+          onSwitchToRegister={switchToRegister}
+        />
+      );
+  }
 }
 
 export default App;
